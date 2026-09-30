@@ -1,0 +1,151 @@
+# Frigate config for Vigilinx. Copy to config/config.yml and edit the cameras.
+# Full reference: https://docs.frigate.video/configuration/reference
+#
+# Frigate's job here: read every camera, record, and track people, dogs and
+# knives. Vigilinx listens to Frigate's events, pulls the short recording of any
+# risky moment, runs its fight/weapon/dog checks and asks Ollama to confirm
+# before alerting.
+
+mqtt:
+  enabled: true
+  host: mqtt          # the mosquitto service in docker-compose.yml
+  port: 1883
+  topic_prefix: frigate
+
+# Decode camera video on the NVIDIA GPU instead of the CPU.
+ffmpeg:
+  hwaccel_args: preset-nvidia
+
+# ---- Object detection on the NVIDIA GPU -------------------------------------
+# Build the model once with scripts/export_yolov9.sh; it writes
+# config/model_cache/yolov9-s-640.onnx. The standard COCO labels include person,
+# dog and knife. Guns are NOT in COCO: Vigilinx's own weapon model still checks
+# every flagged clip for them.
+detectors:
+  onnx:
+    type: onnx
+
+model:
+  model_type: yolo-generic
+  width: 640
+  height: 640
+  input_tensor: nchw
+  input_dtype: float
+  path: /config/model_cache/yolov9-s-640.onnx
+  labelmap_path: /labelmap/coco-80.txt
+
+objects:
+  # Vigilinx checks every person and animal Frigate reports (and knives).
+  track:
+    - person
+    - dog
+    - cat
+    - cow
+    - horse
+    - sheep
+    - knife
+  filters:
+    person:
+      min_score: 0.5
+      threshold: 0.7
+    dog:
+      min_score: 0.5
+      threshold: 0.65
+    cat:
+      min_score: 0.5
+      threshold: 0.65
+    cow:
+      min_score: 0.5
+      threshold: 0.65
+    horse:
+      min_score: 0.5
+      threshold: 0.65
+    sheep:
+      min_score: 0.5
+      threshold: 0.65
+    knife:
+      # Knives are tiny on CCTV; accept lower scores and let Vigilinx + Ollama verify.
+      min_score: 0.35
+      threshold: 0.5
+
+# ---- Recording ----------------------------------------------------------------
+# Vigilinx fetches the few seconds around each risky moment from these recordings,
+# so recording must stay enabled.
+record:
+  enabled: true
+  motion:
+    days: 3
+  alerts:
+    retain:
+      days: 14
+      mode: motion
+  detections:
+    retain:
+      days: 7
+      mode: motion
+
+snapshots:
+  enabled: true
+  retain:
+    default: 14
+
+review:
+  alerts:
+    labels:
+      - person
+      - dog
+      - cat
+      - cow
+      - horse
+      - sheep
+      - knife
+
+# ---- Optional: Frigate's own AI descriptions (shown in Frigate's Explore view) -
+# Uses the same Ollama model Vigilinx uses for verification. Vigilinx does not
+# depend on this; it asks Ollama its own yes/no question. Remove if the GPU is busy.
+genai:
+  local_ollama:
+    provider: ollama
+    base_url: http://ollama:11434
+    model: qwen3-vl:4b
+    roles:
+      - descriptions
+
+# ---- Cameras -------------------------------------------------------------------
+# One entry per camera. Use the low-resolution sub-stream for "detect" and the
+# main stream for "record". Common RTSP paths:
+#   Hikvision / Prama:  rtsp://USER:PASS@IP:554/Streaming/Channels/101  (main)  /102 (sub)
+#   CP Plus / Dahua:    rtsp://USER:PASS@IP:554/cam/realmonitor?channel=1&subtype=0 (main) &subtype=1 (sub)
+# For a DVR/NVR, change the channel number per camera.
+cameras:
+  main_gate:
+    enabled: true
+    ffmpeg:
+      inputs:
+        - path: rtsp://{FRIGATE_RTSP_USER}:{FRIGATE_RTSP_PASSWORD}@192.168.1.64:554/Streaming/Channels/102
+          roles:
+            - detect
+        - path: rtsp://{FRIGATE_RTSP_USER}:{FRIGATE_RTSP_PASSWORD}@192.168.1.64:554/Streaming/Channels/101
+          roles:
+            - record
+    detect:
+      width: 704
+      height: 576
+      fps: 5
+    # Draw zones in the Frigate UI (Settings > Masks / Zones) and paste them here,
+    # e.g. the gate, the lobby, the kids' play area.
+    # zones:
+    #   play_area:
+    #     coordinates: 0.10,0.55,0.60,0.55,0.60,0.95,0.10,0.95
+
+  # parking:
+  #   ffmpeg:
+  #     inputs:
+  #       - path: rtsp://{FRIGATE_RTSP_USER}:{FRIGATE_RTSP_PASSWORD}@192.168.1.100:554/cam/realmonitor?channel=2&subtype=1
+  #         roles: [detect]
+  #       - path: rtsp://{FRIGATE_RTSP_USER}:{FRIGATE_RTSP_PASSWORD}@192.168.1.100:554/cam/realmonitor?channel=2&subtype=0
+  #         roles: [record]
+  #   detect:
+  #     width: 704
+  #     height: 576
+  #     fps: 5

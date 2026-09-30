@@ -1,0 +1,40 @@
+# PC without a graphics card: Windows (Docker Desktop) or Ubuntu (Docker Engine).
+#
+# Runs Frigate (cameras, recording, person/dog/knife detection on the CPU)
+# and Mosquitto (event bus). Ollama is NOT in here: install it natively
+# (Windows app, or the Linux install script), which the Vigilinx backend
+# reaches at http://127.0.0.1:11434.
+#
+# Start (in this folder):  docker compose up -d
+
+services:
+  mqtt:
+    image: eclipse-mosquitto:2
+    container_name: vigilinx-mqtt
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:1883:1883"
+    volumes:
+      - ../mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+
+  frigate:
+    # Standard image (no -tensorrt): detection runs on the CPU via OpenVINO.
+    # Pinned: config/config.example.yml is validated against Frigate 0.18.0.
+    image: ghcr.io/blakeblackshear/frigate:0.18.0
+    container_name: vigilinx-frigate
+    restart: unless-stopped
+    depends_on:
+      - mqtt
+    shm_size: "256mb"
+    ports:
+      - "8971:8971"                # Frigate web UI (login protected)
+      - "127.0.0.1:5000:5000"      # internal API used by Vigilinx; no auth, keep local
+    volumes:
+      - ./config:/config
+      - ./media:/media/frigate
+      - type: tmpfs
+        target: /tmp/cache
+        tmpfs:
+          size: 1000000000
+    env_file:
+      - .env

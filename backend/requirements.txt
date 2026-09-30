@@ -1,0 +1,16 @@
+fastapi>=0.104.1
+uvicorn[standard]>=0.24.0
+python-multipart>=0.0.6
+pydantic>=2.5.0
+opencv-python>=4.8.1.78,<5.0.0
+torch>=2.2.0
+transformers>=4.35.2
+pillow>=10.1.0
+numpy>=1.24.3
+python-dotenv>=1.0.0
+watchdog>=3.0.0
+httpx>=0.28.1
+PyJWT>=2.8,<3
+ultralytics>=8.1.0
+certifi
+paho-mqtt>=2.0,<3

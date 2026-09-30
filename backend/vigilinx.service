@@ -1,0 +1,15 @@
+[Unit]
+Description=Vigilinx AI Surveillance
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/opt/vigilinx/Vigilinx
+WorkingDirectory=/opt/vigilinx
+Restart=on-failure
+RestartSec=5
+Environment=VIGILINX_DATA_DIR=/opt/vigilinx/data
+Environment=DB_PATH=/opt/vigilinx/data/vigilinx.db
+
+[Install]
+WantedBy=multi-user.target

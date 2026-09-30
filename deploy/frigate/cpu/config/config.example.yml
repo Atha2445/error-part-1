@@ -1,0 +1,123 @@
+# Frigate config for a PC WITHOUT a graphics card (Windows or Ubuntu).
+# Copy to config\config.yml and edit the cameras section.
+# Full reference: https://docs.frigate.video/configuration/reference
+#
+# Differences from the NVIDIA config (../config/config.example.yml):
+#   - detection runs on the CPU with OpenVINO (works on Intel and AMD CPUs)
+#   - smaller model (YOLOv9 tiny at 320px) and fewer frames per second
+#   - no GPU video decoding
+# A modern 4-core CPU handles about 2-4 cameras this way. For more cameras,
+# add a graphics card or use a small Intel mini PC running Linux.
+
+mqtt:
+  enabled: true
+  host: mqtt          # the mosquitto service in docker-compose.yml
+  port: 1883
+  topic_prefix: frigate
+
+detectors:
+  ov:
+    type: openvino
+    device: CPU
+
+# Built by scripts\export_yolov9.ps1 (writes config\model_cache\yolov9-t-320.onnx).
+model:
+  model_type: yolo-generic
+  width: 320
+  height: 320
+  input_tensor: nchw
+  input_dtype: float
+  path: /config/model_cache/yolov9-t-320.onnx
+  labelmap_path: /labelmap/coco-80.txt
+
+objects:
+  # Vigilinx checks every person and animal Frigate reports (and knives).
+  track:
+    - person
+    - dog
+    - cat
+    - cow
+    - horse
+    - sheep
+    - knife
+  filters:
+    person:
+      min_score: 0.5
+      threshold: 0.7
+    dog:
+      min_score: 0.5
+      threshold: 0.65
+    cat:
+      min_score: 0.5
+      threshold: 0.65
+    cow:
+      min_score: 0.5
+      threshold: 0.65
+    horse:
+      min_score: 0.5
+      threshold: 0.65
+    sheep:
+      min_score: 0.5
+      threshold: 0.65
+    knife:
+      min_score: 0.35
+      threshold: 0.5
+
+# Vigilinx fetches the seconds around each risky moment from these recordings,
+# so recording must stay enabled.
+record:
+  enabled: true
+  motion:
+    days: 3
+  alerts:
+    retain:
+      days: 14
+      mode: motion
+  detections:
+    retain:
+      days: 7
+      mode: motion
+
+snapshots:
+  enabled: true
+  retain:
+    default: 14
+
+review:
+  alerts:
+    labels:
+      - person
+      - dog
+      - cat
+      - cow
+      - horse
+      - sheep
+      - knife
+
+# Frigate's own AI descriptions are left off: on a CPU they would compete with
+# Vigilinx's verification for the same processor. To turn them on anyway:
+# genai:
+#   local_ollama:
+#     provider: ollama
+#     base_url: http://host.docker.internal:11434   # the Ollama app on Windows
+#     model: qwen3-vl:4b
+#     roles:
+#       - descriptions
+
+cameras:
+  main_gate:
+    enabled: true
+    ffmpeg:
+      inputs:
+        # Hikvision / Prama: /Streaming/Channels/101 (main) and /102 (sub)
+        # CP Plus / Dahua:   /cam/realmonitor?channel=1&subtype=0 (main) and &subtype=1 (sub)
+        - path: rtsp://{FRIGATE_RTSP_USER}:{FRIGATE_RTSP_PASSWORD}@192.168.1.64:554/Streaming/Channels/102
+          roles:
+            - detect
+        - path: rtsp://{FRIGATE_RTSP_USER}:{FRIGATE_RTSP_PASSWORD}@192.168.1.64:554/Streaming/Channels/101
+          roles:
+            - record
+    detect:
+      width: 640
+      height: 360
+      fps: 5

@@ -1,0 +1,4 @@
+# Optional: only for the old Kimi-VL verifier (Ollama replaces it).
+# Needs a C++ compiler to install on Windows (Visual Studio Build Tools).
+# Install with:  pip install -r requirements-kimi.txt
+llama-cpp-python>=0.2.56

@@ -1,0 +1,71 @@
+# Frigate (cameras, recording, object detection) + Ollama (vision model that
+# verifies incidents) + Mosquitto (event bus between Frigate and Vigilinx).
+#
+# The Vigilinx backend keeps running on the host as before and talks to these
+# services on localhost. Every port below is bound to 127.0.0.1 only, except the
+# Frigate web UI, so cameras and models are never exposed to the LAN by accident.
+#
+# Requires: Docker, NVIDIA driver and the NVIDIA Container Toolkit.
+# Start:    docker compose up -d        (from this folder)
+
+services:
+  mqtt:
+    image: eclipse-mosquitto:2
+    container_name: vigilinx-mqtt
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:1883:1883"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: vigilinx-ollama
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:11434:11434"
+    volumes:
+      - ollama:/root/.ollama
+    environment:
+      # Keep the vision model loaded so a verification doesn't wait for a reload.
+      - OLLAMA_KEEP_ALIVE=-1
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  frigate:
+    # Pinned: config/config.example.yml is validated against Frigate 0.18.0.
+    image: ghcr.io/blakeblackshear/frigate:0.18.0-tensorrt
+    container_name: vigilinx-frigate
+    restart: unless-stopped
+    depends_on:
+      - mqtt
+      - ollama
+    shm_size: "512mb"   # roughly 64MB per camera at 720p; raise for more cameras
+    ports:
+      - "8971:8971"                # Frigate web UI (login protected)
+      - "127.0.0.1:5000:5000"      # internal API used by Vigilinx; no auth, keep local
+      - "127.0.0.1:8554:8554"      # RTSP restream
+    volumes:
+      - ./config:/config
+      - ${FRIGATE_MEDIA_DIR:-./media}:/media/frigate
+      - type: tmpfs
+        target: /tmp/cache
+        tmpfs:
+          size: 1000000000
+    env_file:
+      - .env
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+volumes:
+  ollama:

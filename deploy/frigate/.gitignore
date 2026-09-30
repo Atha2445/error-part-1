@@ -1,0 +1,6 @@
+.env
+media/
+config/config.yml
+config/model_cache/
+config/*.db
+config/backup.db

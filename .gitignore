@@ -1,0 +1,52 @@
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Build artifacts & compiled binaries
+build/
+dist/
+*/build/
+*/dist/
+vigilinx-deploy/
+*.spec
+
+# Secrets & Environment variables
+*.env
+.env
+.env.local
+.env.*.local
+!*.env.example
+
+# Python cache & compiled bytecode
+__pycache__/
+*/__pycache__/
+*/*/__pycache__/
+*.py[cod]
+*$py.class
+
+# Databases & local state
+*.db
+*.sqlite3
+backend/database.db
+backend/vigilinx.db
+
+# Heavy model weights (>100MB)
+*.gguf
+models/*.gguf
+backend/models/*.gguf
+
+# Logs & temporary files
+*.log
+logs/
+temp/
+scratch/
+alerts/alert_*.jpg
+backend/alerts/alert_*.jpg
+
+# Runtime data (database, uploaded videos, saved incident clips)
+backend/data/
